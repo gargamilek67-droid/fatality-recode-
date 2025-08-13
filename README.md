@@ -1,7 +1,5 @@
 ### Fatality source fixed + working tickbase lol
 
-#dll download [here (clickable)](https://github.com/cacamelio/fatality-source-fixed/releases/download/release/fatality.dll)
-
 ## for more fire pastes join [here (clickable)](https://discord.gg/hgW3JKPjbg)
 
 ## in game screeenshot <img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/1b326703-10c2-43ad-a166-279b1bb625e0" />
