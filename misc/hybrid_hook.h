@@ -3,8 +3,8 @@
 class c_hook
 {
 public:
-	virtual uintptr_t apply( uintptr_t dest ) { return 0; }
-	virtual uintptr_t apply( const uint32_t index, uintptr_t func ) { return 0; }
+	virtual uintptr_t apply(uintptr_t dest) { return 0; }
+	virtual uintptr_t apply(const uint32_t index, uintptr_t func) { return 0; }
 	virtual bool is_detour() { return false; }
 	virtual ~c_hook() {}
 };
@@ -19,20 +19,20 @@ class c_detour : public c_hook
 
 public:
 	c_detour() = default;
-	__forceinline c_detour( uintptr_t ent ) : src( reinterpret_cast< std::uint8_t* >( ent ) )
+	__forceinline c_detour(uintptr_t ent) : src(reinterpret_cast<std::uint8_t*>(ent))
 	{}
 
 	~c_detour() override
 	{
 #ifndef RELEASE
 		DWORD old_protect;
-		VirtualProtect( src, original_bytes.size(), PAGE_EXECUTE_READWRITE, &old_protect );
-		memcpy( src, original_bytes.data(), original_bytes.size() );
-		VirtualProtect( src, original_bytes.size(), old_protect, &old_protect );
+		VirtualProtect(src, original_bytes.size(), PAGE_EXECUTE_READWRITE, &old_protect);
+		memcpy(src, original_bytes.data(), original_bytes.size());
+		VirtualProtect(src, original_bytes.size(), old_protect, &old_protect);
 #endif
-		if ( original )
+		if (original)
 		{
-			syscall( NtFreeVirtualMemory )( current_process, &original, nullptr, MEM_RELEASE );
+			syscall(NtFreeVirtualMemory)(current_process, &original, nullptr, MEM_RELEASE);
 			sysunlock();
 		}
 	}
@@ -41,7 +41,7 @@ public:
 
 	__forceinline static uint32_t length_disasm(uint8_t* op)
 	{
-		constexpr uintptr_t sig_length_disasm_game = 0x77890;
+		constexpr uintptr_t sig_length_disasm_game = 0x779b0;
 
 		uint32_t size = 0, code = 0;
 
@@ -52,46 +52,46 @@ public:
 		return fn(op, &size, &code) ? size : 0xFFFF;
 	}
 
-	__forceinline uintptr_t apply( uintptr_t dest ) override
+	__forceinline uintptr_t apply(uintptr_t dest) override
 	{
 		auto add = 0;
 		DWORD len = 0;
 		auto opcode = src;
-		while ( opcode - src < 5 )
+		while (opcode - src < 5)
 		{
-			if ( *opcode == 0xE8 )
+			if (*opcode == 0xE8)
 				add = len + 1;
-			if ( *opcode == 0x3B )
+			if (*opcode == 0x3B)
 				len += 2;
-			else if ( *opcode == 0x66 )
+			else if (*opcode == 0x66)
 				len += 5;
 			else
-				len += length_disasm( opcode );
+				len += length_disasm(opcode);
 			opcode = src + len;
 		}
 
-		const auto op_code = std::make_unique<std::uint8_t[]>( len + 5 );
+		const auto op_code = std::make_unique<std::uint8_t[]>(len + 5);
 		//auto return_mem = VirtualAlloc( nullptr, len + 5, MEM_COMMIT, PAGE_EXECUTE_READWRITE );
-		auto return_mem = memory::alloc_mem( len + 5 );
-		for ( std::uint32_t i = 0; i < len; i++ )
+		auto return_mem = memory::alloc_mem(len + 5);
+		for (std::uint32_t i = 0; i < len; i++)
 		{
-			op_code[ i ] = src[ i ];
+			op_code[i] = src[i];
 #ifndef RELEASE
-			original_bytes.push_back( src[ i ] );
+			original_bytes.push_back(src[i]);
 #endif
 		}
 
-		op_code[ len ] = 0xE9;
-		*reinterpret_cast< std::uint32_t* >( op_code.get() + len + 1 ) = reinterpret_cast<
+		op_code[len] = 0xE9;
+		*reinterpret_cast<std::uint32_t*>(op_code.get() + len + 1) = reinterpret_cast<
 			std::uint32_t
-		>( src ) - ( reinterpret_cast< std::uint32_t >( return_mem ) + 5 );
+		>(src) - (reinterpret_cast<std::uint32_t>(return_mem) + 5);
 
-		std::memcpy( return_mem, op_code.get(), len + 5 );
+		std::memcpy(return_mem, op_code.get(), len + 5);
 
-		if ( add )
+		if (add)
 		{
-			*reinterpret_cast< std::uint32_t* >( reinterpret_cast< std::uint32_t >( return_mem ) + add ) -= reinterpret_cast< uintptr_t >( return_mem );
-			*reinterpret_cast< std::uint32_t* >( reinterpret_cast< std::uint32_t >( return_mem ) + add ) += reinterpret_cast< uintptr_t >( src );
+			*reinterpret_cast<std::uint32_t*>(reinterpret_cast<std::uint32_t>(return_mem) + add) -= reinterpret_cast<uintptr_t>(return_mem);
+			*reinterpret_cast<std::uint32_t*>(reinterpret_cast<std::uint32_t>(return_mem) + add) += reinterpret_cast<uintptr_t>(src);
 		}
 
 		/*DWORD old_protect;
@@ -107,16 +107,16 @@ public:
 		return reinterpret_cast< Fn >( original = return_mem );*/
 
 		DWORD old_protect;
-		memory::protect_mem( src, len, PAGE_EXECUTE_READWRITE, old_protect );
+		memory::protect_mem(src, len, PAGE_EXECUTE_READWRITE, old_protect);
 
 		*src = 0xE9;
-		*reinterpret_cast< std::uint32_t* >( src + 1 ) = ( uintptr_t ) ( dest ) -reinterpret_cast< std::uint32_t >( src ) - 5;
-		for ( std::uint32_t i = 5; i < len; ++i )
-			src[ i ] = 0x90;
+		*reinterpret_cast<std::uint32_t*>(src + 1) = (uintptr_t)(dest)-reinterpret_cast<std::uint32_t>(src) - 5;
+		for (std::uint32_t i = 5; i < len; ++i)
+			src[i] = 0x90;
 
-		memory::protect_mem( src, len, old_protect, old_protect );
+		memory::protect_mem(src, len, old_protect, old_protect);
 
-		return reinterpret_cast< uintptr_t >( original = return_mem );
+		return reinterpret_cast<uintptr_t>(original = return_mem);
 	}
 };
 
@@ -124,54 +124,54 @@ public:
 class c_vtable_hook : public c_hook
 {
 public:
-	explicit c_vtable_hook( uintptr_t ent )
+	explicit c_vtable_hook(uintptr_t ent)
 	{
-		base = reinterpret_cast< uintptr_t* >( ent );
+		base = reinterpret_cast<uintptr_t*>(ent);
 		original = *base;
 
 		const auto l = length() + 1;
-		current = std::make_unique<uint32_t[]>( l );
-		std::memcpy( current.get(), reinterpret_cast< void* >( original - sizeof( uint32_t ) ), l * sizeof( uint32_t ) );
+		current = std::make_unique<uint32_t[]>(l);
+		std::memcpy(current.get(), reinterpret_cast<void*>(original - sizeof(uint32_t)), l * sizeof(uint32_t));
 
-		patch_pointer( base );
+		patch_pointer(base);
 	}
 
 	~c_vtable_hook() override
 	{
 #ifndef RELEASE
 		DWORD old;
-		memory::protect_mem( base, sizeof( uintptr_t ), PAGE_READWRITE, old );
+		memory::protect_mem(base, sizeof(uintptr_t), PAGE_READWRITE, old);
 		*base = original;
-		memory::protect_mem( base, sizeof( uintptr_t ), old, old );
+		memory::protect_mem(base, sizeof(uintptr_t), old, old);
 #endif
 	}
 
-	__forceinline uintptr_t apply( const uint32_t index, uintptr_t func ) override
+	__forceinline uintptr_t apply(const uint32_t index, uintptr_t func) override
 	{
-		auto old = reinterpret_cast< uintptr_t* >( original )[ index ];
-		current.get()[ index + 1 ] = func;
+		auto old = reinterpret_cast<uintptr_t*>(original)[index];
+		current.get()[index + 1] = func;
 		return old;
 	}
 
-	void patch_pointer( uintptr_t* location ) const
+	void patch_pointer(uintptr_t* location) const
 	{
-		if ( !location )
+		if (!location)
 			return;
 
 		DWORD old;
-		memory::protect_mem( location, sizeof( uintptr_t ), PAGE_READWRITE, old );
-		*location = reinterpret_cast< uint32_t >( current.get() ) + sizeof( uint32_t );
-		memory::protect_mem( location, sizeof( uintptr_t ), old, old );
+		memory::protect_mem(location, sizeof(uintptr_t), PAGE_READWRITE, old);
+		*location = reinterpret_cast<uint32_t>(current.get()) + sizeof(uint32_t);
+		memory::protect_mem(location, sizeof(uintptr_t), old, old);
 	}
 
 private:
 	uint32_t length() const
 	{
 		uint32_t index;
-		const auto vmt = reinterpret_cast< uint32_t* >( original );
+		const auto vmt = reinterpret_cast<uint32_t*>(original);
 
-		for ( index = 0; vmt[ index ]; index++ )
-			if ( IS_INTRESOURCE( vmt[ index ] ) )
+		for (index = 0; vmt[index]; index++)
+			if (IS_INTRESOURCE(vmt[index]))
 				break;
 
 		return index;
