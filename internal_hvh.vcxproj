@@ -340,6 +340,7 @@
       <ObjectFileName>$(IntDir)/%(RelativeDir)/</ObjectFileName>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <LanguageStandard_C>Default</LanguageStandard_C>
+      <AdditionalOptions>/Zc:threadSafeInit %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>Wininet.lib;luajit.lib;lua51.lib;ntdll.lib;Ws2_32.lib;libMinHook-x86-v141-mtd.lib;Bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>

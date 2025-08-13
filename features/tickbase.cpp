@@ -1,10 +1,8 @@
 #include "../include_cheat.h"
 
-//note from cacamelio : fatality leaked tickbase was fucked when it was released, so i attempted to fixed it
-
-void tickbase::reset()  //i like the way he did this .. i like this code style
+void tickbase::reset()
 {
-	force_choke = force_drop = skip_next_adjust = fast_fire = hide_shot = false;
+	force_choke = force_drop = skip_next_adjust = fast_fire = hide_shot = keep_config_changed = false;
 	clock_drift = server_limit = to_recharge = to_shift = to_adjust = 0;
 }
 
@@ -15,6 +13,7 @@ bool tickbase::holds_tick_base_weapon()
 		return false;
 
 	const auto info = interfaces::weapon_system()->GetWpnData(wpn->get_weapon_id());
+	
 	if (!info)
 		return false;
 
@@ -28,7 +27,11 @@ bool tickbase::holds_tick_base_weapon()
 
 void tickbase::adjust_limit_dynamic(const bool finalize)
 {
+	const auto changed = apply_static_configuration();
 	const auto ready = !to_recharge && !to_shift && !post_shift && !force_choke;
+
+	if (changed)
+		keep_config_changed = force_unchoke = true;
 
 	const auto wpn = local_weapon;
 	if (!wpn || !ready)
@@ -39,13 +42,41 @@ void tickbase::adjust_limit_dynamic(const bool finalize)
 		return;
 
 	const auto cycle_diff = wpn->get_next_primary_attack() - interfaces::globals()->curtime;
+
 	if (fast_fire && (wpn->is_shootable() || wpn->is_knife()) && (wpn_info->cycle_time < 0.55f && cycle_diff > -0.2f || cycle_diff > 0.70f) && (wpn->is_knife() || !wpn->in_reload()))
 		return;
 
-	const auto dont_recharge = wpn->is_grenade() && (wpn->get_pin_pulled() || wpn->get_throw_time() != 0.f);
+	auto dont_recharge = wpn->is_grenade() && (wpn->get_pin_pulled() || wpn->get_throw_time() != 0.f);
+
+	if (dont_recharge)
+		keep_config_changed = false;
+
+	const auto diff_wpn = wpn->get_next_primary_attack() - interfaces::globals()->curtime;
+	const float curtime = interfaces::globals()->curtime;
+	const auto diff_player = local_player->get_next_attack() - interfaces::globals()->curtime;
+
+	if (!dont_recharge && !changed && (fast_fire || hide_shot) && (wpn->is_shootable() || wpn->is_knife()) &&
+		((wpn_info->cycle_time < .55f && diff_wpn > -.2f) || diff_wpn > .7f) && (wpn->is_knife() || !wpn->in_reload()))
+		dont_recharge = true;
+
+	if (!dont_recharge && diff_player > .7f)
+		dont_recharge = true;
+
+	if (keep_config_changed)
+		dont_recharge = false;
+
+	if (dont_recharge)
+		to_recharge = 0;
 
 	const auto diff = determine_optimal_limit() - compute_current_limit();
-	if (diff > 12 && (vars::aim.silent->get<bool>() || aimbot::last_target == -1) && !dont_recharge)
+	const bool standing =local_player && local_player->get_velocity().Length() < 1.1f && globals::current_cmd && globals::current_cmd->forwardmove == 0.f && globals::current_cmd->sidemove == 0.f;
+
+	if (diff >= -2 && diff <= 2) {
+		if (!diff) keep_config_changed = false;
+		return;
+	}
+
+	if (diff > 0 && (vars::aim.silent->get<bool>() || aimbot::last_target == -1) && !dont_recharge && !finalize && (diff > 2 || standing))
 	{
 		to_recharge = diff;
 		prediction::take_shot(false);
@@ -55,8 +86,11 @@ void tickbase::adjust_limit_dynamic(const bool finalize)
 	{
 		to_shift = -diff;
 	}
-}
 
+	if (!diff)
+		keep_config_changed = false;
+
+}
 
 void tickbase::on_recharge(const CUserCmd* cmd)
 {
@@ -103,9 +137,6 @@ void tickbase::on_send_command(const CUserCmd* cmd)
 
 	info.tickbase.skip_fake_commands = skip_next_adjust;
 
-	if (!antiaim::started_peek_fakelag())
-		skip_next_adjust = false;
-
 	compute_current_limit(cmd->command_number);
 }
 
@@ -115,6 +146,7 @@ int tickbase::compute_current_limit(int command_number)
 		return 0;
 
 	const auto& last_ack_info = prediction::get_pred_info(interfaces::client_state()->last_command_ack);
+
 	const auto max_process_ticks = sv_maxusrcmdprocessticks;
 
 	auto limit = last_ack_info.sequence == interfaces::client_state()->last_command_ack ? last_ack_info.tickbase.limit : 16;
@@ -163,8 +195,9 @@ void tickbase::on_runcmd(const CUserCmd* cmd, int& tickbase)
 
 		prev_skip_fake_commands = info.tickbase.skip_fake_commands;
 	}
-	if (to_adjust != 0 && to_adjust + tickbase < 0)
-		to_adjust = -tickbase;
+
+	/*if ( to_adjust != 0 )
+		util::print_dev_console( true, Color::White(), "tickbase: %d adjusted %d\n", tickbase, to_adjust );*/
 
 	tickbase += to_adjust;
 }
@@ -172,8 +205,6 @@ void tickbase::on_runcmd(const CUserCmd* cmd, int& tickbase)
 void tickbase::attempt_shift_back(bool& send_packet)
 {
 	const auto weapon = local_weapon;
-	if (!weapon) return;
-
 	const auto is_revolver = weapon->get_weapon_id() == WEAPON_REVOLVER;
 
 	const auto dont = (fast_fire || hide_shot) && is_revolver || globals::shot_command <= interfaces::client_state()->lastoutgoingcommand || to_shift > 0;
@@ -232,20 +263,24 @@ void tickbase::fill_fake_commands()
 	}
 }
 
-void tickbase::apply_static_configuration()
+//void tickbase::apply_static_configuration()
+bool tickbase::apply_static_configuration()
 {
-	const auto wpn = local_weapon;
+	const auto previous = fast_fire || hide_shot;
+	//const auto wpn = local_weapon;
 	if (vars::aim.fake_duck->get<bool>())
 	{
 		fast_fire = hide_shot = false;
-		return;
+		//return;
 	}
-
-	if (wpn)
+	else //if (wpn)
 	{
 		fast_fire = vars::aim.doubletap->get<bool>();
 		hide_shot = !fast_fire && vars::aim.silent->get<bool>();
 	}
+
+	return previous != (fast_fire || hide_shot);
+
 }
 
 int tickbase::determine_optimal_shift()
