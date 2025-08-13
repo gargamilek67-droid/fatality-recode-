@@ -46,7 +46,7 @@ void tickbase::adjust_limit_dynamic( const bool finalize )
 	const auto diff = determine_optimal_limit() - compute_current_limit();
 	if ( diff > 0 && ( vars::aim.silent->get<bool>() || aimbot::last_target == -1 ) && !dont_recharge )
 	{
-  		to_recharge = diff;
+		to_recharge = diff;
 		prediction::take_shot( false );
 		globals::current_cmd->buttons &= ~IN_ATTACK2;
 	}
@@ -236,7 +236,7 @@ void tickbase::apply_static_configuration()
 		fast_fire = hide_shot = false;
 		return;
 	}
-	
+
 	if ( wpn )
 	{
 		fast_fire = vars::aim.doubletap->get<bool>();
