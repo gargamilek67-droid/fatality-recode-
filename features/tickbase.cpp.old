@@ -44,7 +44,7 @@ void tickbase::adjust_limit_dynamic( const bool finalize )
 	const auto dont_recharge = wpn->is_grenade() && ( wpn->get_pin_pulled() || wpn->get_throw_time() != 0.f );
 
 	const auto diff = determine_optimal_limit() - compute_current_limit();
-	if ( diff > 12 && ( vars::aim.silent->get<bool>() || aimbot::last_target == -1 ) && !dont_recharge )
+	if ( diff > 0 && ( vars::aim.silent->get<bool>() || aimbot::last_target == -1 ) && !dont_recharge )
 	{
   		to_recharge = diff;
 		prediction::take_shot( false );
