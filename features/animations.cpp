@@ -616,7 +616,7 @@ Vector animations::get_headpos()
 		bone_setup::handle_bone_setup( aimbot::shot_record, resolver_direction::resolver_networked );
 
 	_( head0, "head_0" );
-	return math::matrix_get_origin( aimbot::shot_record.matrix( resolver_direction::resolver_networked )[ reinterpret_cast< int( __thiscall* )( void*, const char* ) >( make_offset_multi( "client.dll", sig_lookup_bone ) )( local_player, head0.c_str() ) ] );
+	return math::matrix_get_origin( aimbot::shot_record.matrix( resolver_direction::resolver_networked )[ reinterpret_cast< int( __thiscall* )( void*, const char* ) >( make_offset( "client.dll", sig_lookup_bone ) )( local_player, head0.c_str() ) ] );
 }
 
 

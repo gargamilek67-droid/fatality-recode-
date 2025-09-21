@@ -13,7 +13,7 @@ bool tickbase::holds_tick_base_weapon()
 		return false;
 
 	const auto info = interfaces::weapon_system()->GetWpnData(wpn->get_weapon_id());
-	
+
 	if (!info)
 		return false;
 

@@ -135,7 +135,7 @@ void __cdecl hook::layer_order( CRecvProxyData* pData, void* entity, void* outpu
 		if ( index == 1 )
 		{
 			const auto offset = 0x7A + ( pData->m_Value.m_Int == 7 ? 1 : 8 );
-			prediction::get_pred_info( interfaces::client_state()->command_ack ).animation.state.layer_order_preset = *reinterpret_cast< uintptr_t* >( make_offset_multi( "client.dll", sig_update_layer_order_preset ) + offset );
+			prediction::get_pred_info( interfaces::client_state()->command_ack ).animation.state.layer_order_preset = *reinterpret_cast< uintptr_t* >( make_offset( "client.dll", sig_update_layer_order_preset ) + offset );
 		}
 		prediction::get_pred_info( interfaces::client_state()->command_ack ).animation.layers[ index ].m_nOrder = pData->m_Value.m_Int;
 	}

@@ -2,18 +2,13 @@
 #include <ren/adapter.h>
 
 using namespace evo::ren;
+long __stdcall hook::reset(IDirect3DDevice9* device, D3DPRESENT_PARAMETERS* pp) {
+    if (!adapter)
+        return original(reset)(device, pp);
 
-long __stdcall hook::reset( IDirect3DDevice9* device, D3DPRESENT_PARAMETERS* pp )
-{
-	if ( !adapter )
-		return original( reset )( device, pp );
+    adapter->destroy_objects();
+    const auto hr = original(reset)(device, pp);
+    adapter->create_objects();
 
-
-	adapter->destroy_objects();
-
-	const auto hr = original( reset )( device, pp );
-
-	adapter->create_objects();
-
-	return hr;
+    return hr;
 }

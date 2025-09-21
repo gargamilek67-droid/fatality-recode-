@@ -30,16 +30,16 @@ class CCSGOPlayerAnimState
 {
 
 private:
-	MFUNC( _update( const QAngle ang, bool force ), void( __vectorcall* )( void*, void*, float, float, float, bool ), make_offset( "client.dll", sig_update_anim_state ) )( nullptr, 0, ang.y, ang.x, force );
+	MFUNC(_update(const QAngle ang, bool force), void(__vectorcall*)(void*, void*, float, float, float, bool), make_offset("client.dll", sig_update_anim_state))(nullptr, 0, ang.y, ang.x, force);
 public:
-	MFUNC( reset(), void( __thiscall* )( void* ), make_offset( "client.dll", sig_animstate_reset ) )( );
-	MFUNC( get_active_weapon_prefix() const, const char* ( __thiscall* )( const void* ), make_offset( "client.dll", sig_get_active_weapon_prefix ) )( );
-	MFUNC( get_layer_ideal_weight_from_sequence_cycle( int32_t layer ), float( __thiscall* )( void*, int32_t ), make_offset( "client.dll", sig_get_layer_ideal_weight_from_sequence_cycle ) )( layer );
-	MFUNC( update_layer_order_preset( int32_t index, int32_t sequence ), void( __thiscall* )( void*, int32_t, int32_t ), make_offset_multi( "client.dll", sig_update_layer_order_preset ) )( index, sequence );
+	MFUNC(reset(), void(__thiscall*)(void*), make_offset("client.dll", sig_animstate_reset))();
+	MFUNC(get_active_weapon_prefix() const, const char* (__thiscall*)(const void*), make_offset("client.dll", sig_get_active_weapon_prefix))();
+	MFUNC(get_layer_ideal_weight_from_sequence_cycle(int32_t layer), float(__thiscall*)(void*, int32_t), make_offset("client.dll", sig_get_layer_ideal_weight_from_sequence_cycle))(layer);
+	MFUNC(update_layer_order_preset(int32_t index, int32_t sequence), void(__thiscall*)(void*, int32_t, int32_t), make_offset("client.dll", sig_update_layer_order_preset))(index, sequence);
 
-	void update( const QAngle ang );
+	void update(const QAngle ang);
 
-	inline void copy_meta( CCSGOPlayerAnimState* const to ) const
+	inline void copy_meta(CCSGOPlayerAnimState* const to) const
 	{
 		to->first_run = this->first_run;
 		to->first_foot_plant = this->first_foot_plant;
@@ -51,7 +51,7 @@ public:
 		to->step_height_right = this->step_height_right;
 		to->old_weapon = this->old_weapon;
 		to->player = this->player;
-		memcpy( to->poses, this->poses, sizeof( poses ) );
+		memcpy(to->poses, this->poses, sizeof(poses));
 		to->foot_left = this->foot_left;
 		to->foot_right = this->foot_right;
 		to->camera_smooth_height = this->camera_smooth_height;
@@ -151,7 +151,7 @@ public:
 	float foop_lerp{};
 	bool feet_crossed{};
 	bool is_accelerating{};
-	pose_param_cache poses[ 20 ]{};
+	pose_param_cache poses[20]{};
 	float move_weight_too_high{};
 	float static_approach_speed{};
 	int32_t previous_move_state{};

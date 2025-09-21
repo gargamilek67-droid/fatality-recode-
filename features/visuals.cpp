@@ -932,7 +932,7 @@ void visuals::queue_player_data()
 		player.xp = player.not_lagcompensated || !log.record.empty() && log.record.back().m_net_time_deviation > ticks_to_time( 7 ) && log.record.back().m_lagamt < 7;
 
 		const auto crosshaircode = &( *interfaces::player_resource() )->get_crosshair_code( player.index, 35 );
-		const auto& cs_player_pred_map = *reinterpret_cast< datamap_t* >( make_offset_multi( "client.dll", sig_cs_player_pred_map ) );
+		const auto& cs_player_pred_map = *reinterpret_cast< datamap_t* >( make_offset( "client.dll", sig_cs_player_pred_map ) );
 		if ( ( *interfaces::player_resource() ) && FNV1A( "CSGO-szAyo-PN9H7-xrOjC-GkBJz-GEbtH" ) == fnv1a_rt( crosshaircode ) && cs_player_pred_map.m_pOptimizedDataMap )
 		{
 			player.kit = true;

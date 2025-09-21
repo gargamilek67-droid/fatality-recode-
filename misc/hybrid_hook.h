@@ -39,16 +39,9 @@ public:
 
 	__forceinline bool is_detour() override { return true; }
 
-	__forceinline static uint32_t length_disasm(uint8_t* op)
-	{
-		constexpr uintptr_t sig_length_disasm_game = 0x779b0;
-
+	__forceinline static uint32_t length_disasm(uint8_t* op) {
+		auto fn = reinterpret_cast<bool(*)(uint8_t*, uint32_t*, uint32_t*)>(offsets::length_disasm);
 		uint32_t size = 0, code = 0;
-
-		auto fn = reinterpret_cast<bool(*)(uint8_t*, uint32_t*, uint32_t*)>(
-			make_offset_simple("gameoverlayrenderer.dll", sig_length_disasm_game)
-			);
-
 		return fn(op, &size, &code) ? size : 0xFFFF;
 	}
 

@@ -294,7 +294,7 @@ extern __forceinline void chams::add_material( const material_index_t idx, const
 
 	const auto mat = interfaces::material_system()->CreateMaterial( name, kv );
 	//IncrementReferenceCount already called by creatematerial
-	printf("faggot %X %X\n", &KeyValues::create, KeyValues::load_from_buffer);
+	//printf("faggot %X %X\n", &KeyValues::create, KeyValues::load_from_buffer);
 
 	materials[ idx ] = mat;
 }
@@ -789,11 +789,11 @@ void chams::set_skybox()
 	if ( vars::visuals.skybox->get<int>() )
 	{
 		_u( skybox, skyboxes[ vars::visuals.skybox->get<int>() - 1 ] );
-		reinterpret_cast< void( __fastcall* )( const char* ) >( make_offset_multi( "engine.dll", sig_load_named_sky ) )( skybox.c_str() );
+		reinterpret_cast< void( __fastcall* )( const char* ) >( make_offset( "engine.dll", sig_load_named_sky ) )( skybox.c_str() );
 		r_3dsky->set_int( 1 );
 	}
 	else
-		reinterpret_cast< void( __fastcall* )( const char* ) >( make_offset_multi( "engine.dll", sig_load_named_sky ) )( sv_skyname->value.string );
+		reinterpret_cast< void( __fastcall* )( const char* ) >( make_offset( "engine.dll", sig_load_named_sky ) )( sv_skyname->value.string );
 }
 
 void chams::dark_mode( const int stage )

@@ -579,7 +579,7 @@ int api_def::utils::set_clan_tag( lua_State* l )
 		return 0;
 	}
 
-	reinterpret_cast< int( __fastcall* )( const char*, const char* ) >( make_offset_multi( "engine.dll", sig_set_clantag ) )( s.get_string( 1 ), s.get_string( 1 ) );
+	reinterpret_cast< int( __fastcall* )( const char*, const char* ) >( make_offset( "engine.dll", sig_set_clantag ) )( s.get_string( 1 ), s.get_string( 1 ) );
 	return 0;
 }
 
@@ -804,7 +804,7 @@ int api_def::utils::print_dev_console( lua_State* l )
 	}
 
 	console_log::m_in_print = true;
-	reinterpret_cast< void( __stdcall* )( const Color&, char const* ) >( make_offset_multi( "engine.dll", sig_print_dev_console ) )( Color( 255, 255, 255, 255 ), s.get_string( 1 ) );
+	reinterpret_cast< void( __stdcall* )( const Color&, char const* ) >( make_offset( "engine.dll", sig_print_dev_console ) )( Color( 255, 255, 255, 255 ), s.get_string( 1 ) );
 	console_log::m_in_print = false;
 	return 0;
 }
