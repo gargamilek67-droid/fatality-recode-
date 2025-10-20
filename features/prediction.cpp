@@ -1,222 +1,193 @@
-#include "../include_cheat.h"
-#include <intrin.h>
+#include "prediction_system.h"
 
-void prediction::start( int sequence_nr )
+void engineprediction::FixNetvarCompression(int time)
 {
-	auto& cur_info = pred_info[ sequence_nr % 150 ];
+    auto data = &netvars_data[time % MULTIPLAYER_BACKUP]; //-V807
 
-	if ( sequence_nr != cur_info.sequence )
-	{
-		cur_info.reset();
-		cur_info.sequence = sequence_nr;
-	}
+    if (!data || !data->m_bIsFilled || data->command_number != time || (time - data->command_number) > 150)
+        return;
 
-	orig_curtime = interfaces::globals()->curtime;
-	orig_frametime = interfaces::globals()->frametime;
+    auto aim_punch_angle_delta = data->m_aimPunchAngle - g_ctx.local()->m_aimPunchAngle();
+    auto aim_punch_angle_vel_delta = data->m_aimPunchAngleVel - g_ctx.local()->m_aimPunchAngleVel();
+    auto view_punch_angle_delta = data->m_viewPunchAngle - g_ctx.local()->m_viewPunchAngle();
+    auto view_offset_delta = data->m_vecViewOffset - g_ctx.local()->m_vecViewOffset();
+    auto velocity_delta = data->m_vecVelocity - g_ctx.local()->m_vecVelocity();
 
-	unpred_abs_origin = local_player->get_abs_origin();
-	unpred_vel = local_player->get_velocity();
-	unpred_flags = local_player->get_flags();
-	unpred_move = { globals::current_cmd->forwardmove, globals::current_cmd->sidemove };
+    auto duck_amount_delta = data->m_flDuckAmount - g_ctx.local()->m_flDuckAmount();
+    auto fall_velocity_delta = data->m_flFallVelocity - g_ctx.local()->m_flFallVelocity();
+    auto velocity_modifier_delta = data->m_flVelocityModifier - g_ctx.local()->m_flVelocityModifier();
 
-	predict_post_pone_time( globals::current_cmd );
+    if (std::fabs(aim_punch_angle_delta.x) <= 0.03125f && std::fabs(aim_punch_angle_delta.y) <= 0.03125f && std::fabs(aim_punch_angle_delta.z) <= 0.03125f)
+        g_ctx.local()->m_aimPunchAngle() = data->m_aimPunchAngle;
 
-	predict_can_fire( globals::current_cmd );
+    if (std::fabs(aim_punch_angle_vel_delta.x) <= 0.03125f && std::fabs(aim_punch_angle_vel_delta.y) <= 0.03125f && std::fabs(aim_punch_angle_vel_delta.z) <= 0.03125f)
+        g_ctx.local()->m_aimPunchAngleVel() = data->m_aimPunchAngleVel;
 
-	run_prediction( sequence_nr );
+    if (std::fabs(view_punch_angle_delta.x) <= 0.03125f && std::fabs(view_punch_angle_delta.y) <= 0.03125f && std::fabs(view_punch_angle_delta.z) <= 0.03125f)
+        g_ctx.local()->m_viewPunchAngle() = data->m_viewPunchAngle;
 
-	orig_predicted = interfaces::prediction()->get_predicted_commands();
-	initial_vel = local_player->get_velocity();
-	cur_info.movetype = local_player->get_move_type();
-	cur_info.tick_base = local_player->get_tickbase();
+    if (std::fabs(view_offset_delta.x) <= 0.03125f && std::fabs(view_offset_delta.y) <= 0.03125f && std::fabs(view_offset_delta.z) <= 0.03125f)
+        g_ctx.local()->m_vecViewOffset() = data->m_vecViewOffset;
 
-	if ( const auto wpn = local_weapon )
-		aimbot_helpers::autorevolver( wpn );
+    if (std::fabs(velocity_delta.x) <= 0.03125f && std::fabs(velocity_delta.y) <= 0.03125f && std::fabs(velocity_delta.z) <= 0.03125f)
+        g_ctx.local()->m_vecVelocity() = data->m_vecVelocity;
+
+
+
+    if (std::fabs(duck_amount_delta) <= 0.03125f)
+        g_ctx.local()->m_flDuckAmount() = data->m_flDuckAmount;
+
+    if (std::fabs(fall_velocity_delta) <= 0.03125f)
+        g_ctx.local()->m_flFallVelocity() = data->m_flFallVelocity;
+
+    if (std::fabs(velocity_modifier_delta) <= 0.00625f)
+        g_ctx.local()->m_flVelocityModifier() = data->m_flVelocityModifier;
 }
 
-void prediction::finish( bool sendpacket )
+void engineprediction::store_netvars()
 {
-	interfaces::globals()->curtime = orig_curtime;
-	interfaces::globals()->frametime = orig_frametime;
+    auto data = &netvars_data[m_clientstate()->iCommandAck % MULTIPLAYER_BACKUP];
 
-	const auto frame = interfaces::client_state()->lastoutgoingcommand + interfaces::client_state()->chokedcommands + 1;
-	auto last = interfaces::client_state()->last_command_ack + orig_predicted;
-
-	interfaces::input()->m_pCommands[ frame % 150 ].hasbeenpredicted = false;
-
-	if ( sendpacket && globals::shot_command > interfaces::client_state()->lastoutgoingcommand && globals::shot_command < frame && globals::shot_command == globals::choked_shot_command )
-	{
-		interfaces::input()->m_pCommands[ globals::shot_command % 150 ].hasbeenpredicted = false;
-		last = globals::shot_command;
-	}
-
-	const auto weapon = local_weapon;
-	if ( ( had_attack || had_secondary_attack ) && !has_shot_this_cycle && ( can_shoot || weapon && weapon->get_weapon_id() == WEAPON_REVOLVER ) )
-	{
-		last = std::min( last, globals::current_cmd->command_number );
-		if ( had_attack )
-			globals::current_cmd->buttons |= IN_ATTACK;
-		if ( had_secondary_attack )
-			globals::current_cmd->buttons |= IN_ATTACK2;
-	}
-
-	interfaces::prediction()->get_predicted_commands() = clamp( last - interfaces::client_state()->last_command_ack - 1, 0, interfaces::prediction()->get_predicted_commands() );
+    data->tickbase = g_ctx.local()->m_nTickBase();
+    data->m_aimPunchAngle = g_ctx.local()->m_aimPunchAngle();
+    data->m_aimPunchAngleVel = g_ctx.local()->m_aimPunchAngleVel();
+    data->m_viewPunchAngle = g_ctx.local()->m_viewPunchAngle();
+    data->m_vecViewOffset = g_ctx.local()->m_vecViewOffset();
+    data->m_duckAmount = g_ctx.local()->m_flDuckAmount();
+    data->m_duckSpeed = g_ctx.local()->m_flDuckSpeed();
 }
 
-void prediction::run_prediction( int command_number )
+void engineprediction::store_data()
 {
-	if ( interfaces::client_state()->m_nDeltaTick <= 0 )
-		return;
+    int          tickbase;
+    StoredData_t* data;
 
-	if ( !last_update_command_number || globals::current_cmd->command_number - last_update_command_number - 2 > 148 )
-		return;
+    if (!g_ctx.local() && !g_ctx.local()->is_alive()) {
+        reset_data();
+        return;
+    }
 
-	const auto verified_cmd = &interfaces::input()->m_pVerifiedCommands[ command_number % 150 ];
-	const auto checksum = verified_cmd->m_crc;
-	const auto force_run = checksum == *reinterpret_cast< int32_t* >( &interfaces::globals()->interval_per_tick );
+    tickbase = g_ctx.local()->m_nTickBase();
 
-	if ( !force_run )
-		misc::write_tick( command_number );
+    data = &m_data[tickbase % MULTIPLAYER_BACKUP];
 
-	const auto rerun = verified_cmd->m_crc != checksum || force_run;
-
-	for ( auto i = interfaces::client_state()->lastoutgoingcommand + 1; i <= command_number; i++ )
-		interfaces::input()->m_pCommands[ i % 150 ].hasbeenpredicted = true;
-
-	if ( rerun )
-		interfaces::prediction()->get_predicted_commands() = clamp( command_number - interfaces::client_state()->last_command_ack, 0, interfaces::prediction()->get_predicted_commands() );
-
-	computing = true;
-	interfaces::prediction()->m_flLastServerWorldTimeStamp = 0.f;
-	interfaces::prediction()->Update( interfaces::client_state()->m_nDeltaTick, true, interfaces::client_state()->last_command_ack, command_number );
-	computing = false;
-
-	interfaces::globals()->curtime = tickbase::get_adjusted_time();
-	interfaces::globals()->frametime = interfaces::globals()->interval_per_tick;
-
-	const auto wpn = local_weapon;
-	const auto player = local_player;
-	pred_info[ command_number % 150 ].throwtime = wpn && wpn->is_grenade() ? wpn->get_throw_time() : 0.f;
-	pred_info[ command_number % 150 ].m_flags = player->get_flags();
-
-	player->get_collision_bounds_change_time() = pred_info[ command_number % 150 ].collision_bounds_change_time;
-	player->get_collision_viewheight() = pred_info[ command_number % 150 ].collision_viewheight;
+    data->m_tickbase = tickbase;
+    data->m_punch = g_ctx.local()->m_aimPunchAngle();
+    data->m_punch_vel = g_ctx.local()->m_aimPunchAngleVel();
+    data->m_view_offset = g_ctx.local()->m_vecViewOffset();
+    data->m_velocity_modifier = g_ctx.local()->m_flVelocityModifier();
 }
 
-void prediction::set_last_command_number( int num )
+void engineprediction::reset_data()
 {
-	last_update_command_number = num;
+    m_data.fill(StoredData_t());
 }
 
-void prediction::predict_post_pone_time( CUserCmd* cmd )
+void engineprediction::update_incoming_sequences()
 {
-	const auto wpn = local_weapon;
-	if ( !wpn || !last_update_command_number || globals::current_cmd->command_number - last_update_command_number - 2 > 148 )
-		return;
+    if (!m_clientstate()->pNetChannel)
+        return;
 
-	const auto last_cmd = &interfaces::input()->m_pCommands[ ( cmd->command_number - 1 ) % 150 ];
-	run_prediction( cmd->command_number - 1 );
-	const auto last_tick = local_player->get_tickbase() - 1;
+    if (m_sequence.empty() || m_clientstate()->pNetChannel->m_nInSequenceNr > m_sequence.front().m_seq) {
+        m_sequence.emplace_front(m_globals()->m_realtime, m_clientstate()->pNetChannel->m_nInReliableState, m_clientstate()->pNetChannel->m_nInSequenceNr);
+    }
 
-	wpn->get_postpone_fire_ready_time() = get_pred_info( cmd->command_number - 1 ).postpone_fire_ready_time;
-
-	if ( wpn->get_weapon_id() != WEAPON_REVOLVER || wpn->in_reload() ||
-		local_player->get_next_attack() > ticks_to_time( last_tick ) ||
-		wpn->get_next_primary_attack() > ticks_to_time( last_tick ) ||
-		!( last_cmd->buttons & IN_ATTACK ) && !( last_cmd->buttons & IN_ATTACK2 ) )
-	{
-		wpn->get_postpone_fire_ready_time() = FLT_MAX;
-		prone_delay = -1;
-	}
-	else if ( last_cmd->buttons & IN_ATTACK )
-	{
-		if ( prone_delay == -1 )
-			prone_delay = last_tick + time_to_ticks( prone_time );
-
-		if ( prone_delay <= last_tick )
-			wpn->get_postpone_fire_ready_time() = ticks_to_time( prone_delay ) + post_delay;
-	}
-
-	get_pred_info( cmd->command_number ).postpone_fire_ready_time = wpn->get_postpone_fire_ready_time();
+    while (m_sequence.size() > 2048)
+        m_sequence.pop_back();
 }
 
-void prediction::predict_can_fire( CUserCmd* const cmd )
+void engineprediction::update_vel()
 {
-	if ( !interfaces::client_state()->chokedcommands )
-		reset_shot();
+    static int m_iLastCmdAck = 0;
+    static float m_flNextCmdTime = 0.f;
 
-	can_shoot = false;
+    if (m_clientstate() && (m_iLastCmdAck != m_clientstate()->nLastCommandAck || m_flNextCmdTime != m_clientstate()->flNextCmdTime))
+    {
+        if (g_ctx.globals.last_velocity_modifier != g_ctx.local()->m_flVelocityModifier())
+        {
+            *reinterpret_cast<int*>(reinterpret_cast<uintptr_t>(m_prediction() + 0x24)) = 1;
+            g_ctx.globals.last_velocity_modifier = g_ctx.local()->m_flVelocityModifier();
+        }
 
-	auto wpn = local_weapon;
-	if ( !wpn || wpn->is_grenade() )
-		return;
-
-	const auto last_shot_time = wpn->get_last_shot_time();
-	const auto next_seondary_attack = wpn->get_next_secondary_attack();
-	const auto clip = wpn->get_clip1();
-	had_attack = !!( cmd->buttons & IN_ATTACK );
-	had_secondary_attack = wpn->is_secondary_attack_weapon() && !!( cmd->buttons & IN_ATTACK2 );
-	if ( wpn->is_shootable() || wpn->is_knife() && vars::aim.knife_bot->get<bool>() || wpn->is_zeus() && vars::aim.zeus_bot->get<bool>() )
-		cmd->buttons |= IN_ATTACK;
-
-	run_prediction( cmd->command_number );
-
-	const auto wpn2 = local_weapon;
-	if ( wpn != wpn2 || ( wpn->is_shootable() || wpn->is_knife() && vars::aim.knife_bot->get<bool>() || wpn->is_zeus() && vars::aim.zeus_bot->get<bool>() ) )
-	{
-		cmd->buttons &= ~IN_ATTACK;
-		if ( wpn->is_knife() )
-			cmd->buttons &= ~IN_ATTACK2;
-	}
-
-	if ( wpn == wpn2 && ( wpn->is_shootable() && clip > 0 || wpn->is_secondary_attack_weapon() ) )
-		can_shoot = last_shot_time != wpn->get_last_shot_time() || wpn->is_secondary_attack_weapon() && had_secondary_attack && wpn->get_next_secondary_attack() != next_seondary_attack;
-
-	if ( has_shot_this_cycle && wpn == wpn2 && ( wpn->is_shootable() || wpn->is_secondary_attack_weapon() || wpn->is_zeus() ) )
-		can_shoot = false;
+        m_iLastCmdAck = m_clientstate()->nLastCommandAck;
+        m_flNextCmdTime = m_clientstate()->flNextCmdTime;
+    }
 }
 
-prediction::pred_info_t& prediction::get_pred_info( const int cmd )
+void engineprediction::setup()
 {
-	return pred_info[ cmd % 150 ];
+    if (prediction_data.prediction_stage != SETUP)
+        return;
+
+    backup_data.flags = g_ctx.local()->m_fFlags(); //-V807
+    backup_data.velocity = g_ctx.local()->m_vecVelocity();
+
+    prediction_data.old_curtime = m_globals()->m_curtime; //-V807
+    prediction_data.old_frametime = m_globals()->m_frametime;
+
+    m_prediction()->InPrediction = true;
+    m_prediction()->IsFirstTimePredicted = false;
+
+    m_globals()->m_curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+    m_globals()->m_frametime = m_prediction()->EnginePaused ? 0.0f : m_globals()->m_intervalpertick;
+
+    prediction_data.prediction_stage = PREDICT;
 }
 
-void prediction::clear_pred_info()
-{
-	for ( auto& elem : pred_info ) elem.reset();
+void engineprediction::predict(CUserCmd* m_pcmd) {
+    static auto oldorigin = g_ctx.local()->m_vecOrigin();
+    auto unpred_vel = (g_ctx.local()->m_vecOrigin() - oldorigin) * (1.0 / m_globals()->m_intervalpertick);
+    oldorigin = g_ctx.local()->m_vecOrigin();
+
+   // auto unpred_eyepos = g_ctx.local()->GetEyePos();
+
+
+    if (!prediction_data.prediction_random_seed)
+        prediction_data.prediction_random_seed = *reinterpret_cast <int**> (util::FindSignature(crypt_str("client.dll"), crypt_str("A3 ? ? ? ? 66 0F 6E 86")) + 0x1);
+
+    *prediction_data.prediction_random_seed = MD5_PseudoRandom(m_pcmd->m_command_number) & INT_MAX;
+
+    if (!prediction_data.prediction_player)
+        prediction_data.prediction_player = *reinterpret_cast <int**> (util::FindSignature(crypt_str("client.dll"), crypt_str("89 35 ? ? ? ? F3 0F 10 48")) + 0x2);
+
+    *prediction_data.prediction_player = reinterpret_cast <int> (g_ctx.local());
+
+    prediction_data.old_curtime = m_globals()->m_curtime; //-V807
+    prediction_data.old_frametime = m_globals()->m_frametime;
+
+    m_globals()->m_curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+    m_globals()->m_frametime = m_prediction()->EnginePaused ? 0.0f : m_globals()->m_intervalpertick;
+
+    m_gamemovement()->StartTrackPredictionErrors(g_ctx.local());
+
+    CMoveData move_data;
+    memset(&move_data, 0, sizeof(CMoveData));
+    m_gamemovement()->StartTrackPredictionErrors(g_ctx.local());
+    m_movehelper()->set_host(g_ctx.local());
+    m_prediction()->SetupMove(g_ctx.local(), m_pcmd, m_movehelper(), &move_data);
+    m_prediction()->FinishMove(g_ctx.local(), m_pcmd, &move_data);
+
+    static auto pred_oldorigin = g_ctx.local()->m_vecOrigin();
+    auto pred_vel = (g_ctx.local()->m_vecOrigin() - pred_oldorigin) * (1.0 / m_globals()->m_intervalpertick);
+    pred_oldorigin = g_ctx.local()->m_vecOrigin();
+
+    //unpred_eyepos = g_ctx.local()->m_vecOrigin();
+
+    prediction_data.prediction_stage = FINISH;
 }
 
-void prediction::take_shot( const bool shot )
-{
-	had_attack = shot;
-}
 
-void prediction::take_secondary_shot( const bool shot )
+void engineprediction::finish()
 {
-	had_secondary_attack = shot;
-}
+    if (prediction_data.prediction_stage != FINISH)
+        return;
 
-bool prediction::has_shot()
-{
-	return can_shoot && ( had_attack || had_secondary_attack );
-}
+    m_gamemovement()->StartTrackPredictionErrors(g_ctx.local());
+    m_movehelper()->set_host(g_ctx.local());
 
-bool prediction::can_fire()
-{
-	return can_shoot && !has_shot_this_cycle;
-}
+    *prediction_data.prediction_random_seed = -1;
+    *prediction_data.prediction_player = 0;
 
-void prediction::evaluate_shots()
-{
-	if ( can_shoot && ( had_attack || had_secondary_attack ) ) has_shot_this_cycle = true;
-}
-
-void prediction::reset_shot()
-{
-	has_shot_this_cycle = false;
-}
-
-void prediction::set_forced_shot()
-{
-	has_shot_this_cycle = true;
+    m_globals()->m_curtime = prediction_data.old_curtime;
+    m_globals()->m_frametime = prediction_data.old_frametime;
 }
