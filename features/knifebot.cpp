@@ -1,151 +1,142 @@
-#include "../include_cheat.h"
+// This is an independent project of an individual developer. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
 
-std::mutex knife_trace_mutex;
+#include "knifebot.h"
+#include "..\misc\misc.h"
+#include "..\misc\logs.h"
+#include "..\autowall\autowall.h"
+#include "..\misc\prediction_system.h"
+#include "..\fakewalk\slowwalk.h"
+#include "..\lagcompensation\local_animations.h"
+#include <random>
 
-bool knifebot::trace_knife( const Vector spot, lag_record_t* record, bool& retstab )
+void knifebot::run(CUserCmd* cmd)
 {
-	std::lock_guard l( knife_trace_mutex );
+	final_target.reset();
 
-	// Attack range of knife attack
-	const auto stab = rules_knife( record );
-	const auto range = stab ? 32.0f : 48.0f;
+	if ((!c_config::get()->b["rage_enabled"] && !c_config::get()->auto_check(c_config::get()->i["rage_key_enabled"], c_config::get()->i["rage_key_enabled_st"])))
+		return;
 
-	const auto player = globals::get_player( record->m_index );
+	if (!c_config::get()->b["misc_Knifebot"])
+		return;
 
-	const auto collideable = player->GetCollideable();
+	if (!g_ctx.globals.weapon->is_knife())
+		return;
 
-	auto backup_origin = player->get_origin();
-	auto backup_absorigin = player->get_abs_origin();
-	auto backup_mins = collideable->OBBMins();
-	auto backup_maxs = collideable->OBBMaxs();
+	scan_targets();
 
-	player->set_abs_origin( record->m_origin, true );
-	player->get_origin() = record->m_origin;
+	if (!final_target.record)
+		return;
 
-	collideable->OBBMins() = record->m_obb_mins;
-	collideable->OBBMaxs() = record->m_obb_maxs;
+	fire(cmd);
+}
 
-	Ray_t ray;
-	trace_t tr;
+void knifebot::scan_targets()
+{
+	if (aim::get().targets.empty())
+		return;
 
-	const auto eyepos = local_player->get_eye_pos();
-
-	// Calculte end spot
-	Vector vec_aim{};
-	const auto angle = math::calc_angle( eyepos, spot );
-	math::angle_vectors( angle, &vec_aim );
-	const auto end = eyepos + vec_aim * range;
-
-	// Trace attack
-	ray.Init( eyepos, end );
-	CTraceFilterSimple filter( local_player );
-	interfaces::engine_trace()->TraceRay( ray, MASK_SOLID, &filter, &tr );
-
-	// If that failed, try a hull trace
-	if ( tr.fraction >= 1.0f )
+	for (auto& target : aim::get().targets)
 	{
-		static const Vector hull[] = { Vector( -16.0f, -16.0f, -18.0f ), Vector( 16.0f, 16.0f, 18.0f ) };
-		ray.Init( eyepos, end, hull[ 0 ], hull[ 1 ] );
-		CTraceFilterSimple filter( local_player );
-		interfaces::engine_trace()->TraceRay( ray, MASK_SOLID, &filter, &tr );
+		if (target.history_record->valid())
+		{
+			if (target.last_record->valid())
+			{
+				auto last_distance = g_ctx.globals.eye_pos.DistTo(target.last_record->origin);
+				auto history_distance = g_ctx.globals.eye_pos.DistTo(target.history_record->origin);
+
+				final_target.record = last_distance > history_distance ? target.history_record : target.last_record;
+				final_target.record->adjust_player();
+			}
+			else
+			{
+				final_target.record = target.history_record;
+				final_target.record->adjust_player();
+			}
+		}
+		else
+		{
+			final_target.record = target.last_record;
+			final_target.record->adjust_player();
+		}
+	}
+}
+
+int GetMinimalHp() {
+	if (TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) > (g_ctx.globals.weapon->m_flNextPrimaryAttack() + 0.4f))
+		return 34;
+
+	return 21;
+}
+
+void knifebot::fire(CUserCmd* cmd)
+{
+	if (!g_ctx.globals.weapon->can_fire(false))
+		return;
+
+	auto vecOrigin = final_target.record->player->m_vecOrigin();
+
+	auto vecOBBMins = final_target.record->player->GetCollideable()->OBBMins();
+	auto vecOBBMaxs = final_target.record->player->GetCollideable()->OBBMaxs();
+
+	auto vecMins = vecOBBMins + vecOrigin;
+	auto vecMaxs = vecOBBMaxs + vecOrigin;
+
+	auto vecEyePos = final_target.record->player->get_shoot_position();
+
+	if (vecMins < vecEyePos)
+		vecMins = vecEyePos;
+
+	if (vecMins > vecMaxs)
+		vecMins = vecMaxs;
+
+	auto vecDelta = vecMins - g_ctx.globals.eye_pos;
+
+	if (vecDelta.Length() > 60.0f)
+		return;
+
+	vecDelta.Normalize();
+	auto delta = fabs(math::normalize_yaw(final_target.record->angles.y - math::calculate_angle(final_target.record->player->get_shoot_position(), g_ctx.local()->GetAbsOrigin()).y));
+
+	if (final_target.record->player->m_iHealth() > 46 && delta < 120.0f)
+	{	
+		cmd->m_viewangles = vecDelta.ToEulerAngles();
+		cmd->m_buttons |= IN_ATTACK;
+		cmd->m_tickcount = TIME_TO_TICKS(final_target.record->simulation_time + util::get_interpolation());
 	}
 
-	player->get_origin() = backup_origin;
-	player->set_abs_origin( backup_absorigin, true );
-	player->get_eflags() |= EFL_DIRTY_ABSTRANSFORM;
+	if (!determinate_hit_type(1, vecDelta))
+		return;
 
-	collideable->OBBMins() = backup_mins;
-	collideable->OBBMaxs() = backup_maxs;
-
-	if ( reinterpret_cast< C_CSPlayer* >( tr.m_pEnt ) != player )
-		return false;
-
-	retstab = stab;
-	return true;
+	cmd->m_viewangles = vecDelta.ToEulerAngles();
+	cmd->m_buttons |= IN_ATTACK2;
+	cmd->m_tickcount = TIME_TO_TICKS(final_target.record->simulation_time + util::get_interpolation());
 }
 
-bool knifebot::rules_knife( lag_record_t* record )
+int knifebot::determinate_hit_type(bool stab_type, const Vector& delta) 
 {
-	const auto player = globals::get_player( record->m_index );
-	C_BaseCombatWeapon* weapon = local_weapon;
+	auto minimum_distance = stab_type ? 32.0f : 48.0f;
+	auto end = g_ctx.globals.eye_pos + delta * minimum_distance;
 
-	//------------------------------------------------
-	// Swing and stab damage
+	CTraceFilter filter;
+	filter.pSkip = g_ctx.local();
 
-	struct table_t
-	{
-		// [first][armor][back]
-		unsigned char swing[ 2 ][ 2 ][ 2 ];
-		// [armor][back]
-		unsigned char stab[ 2 ][ 2 ];
-	};
-	static const table_t table = { { { { 25, 90 }, { 21, 76 } }, { { 40, 90 }, { 34, 76 } } }, { { 65, 180 }, { 55, 153 } } };
+	trace_t trace;
+	Ray_t ray;
 
-	const auto armor = ( player->get_armor() > 0 );
-	const auto first = weapon->get_next_primary_attack() + 0.4f < interfaces::globals()->curtime;
-	const auto back = is_behind( record );
+	ray.Init(g_ctx.globals.eye_pos, end, Vector(-16.0f, -16.0f, -18.0f), Vector(16.0f, 16.0f, 18.0f));
+	m_trace()->TraceRay(ray, 0x200400B, &filter, &trace);
 
-	const auto stab_dmg = table.stab[ armor ][ back ];
-	const auto slash_dmg = table.swing[ false ][ armor ][ back ];
-	const auto swing_dmg = table.swing[ first ][ armor ][ back ];
+	if (trace.hit_entity != final_target.record->player)
+		return 0;
 
-	//------------------------------------------------
-	// Select desired attack
+	auto cos_pitch = cos(DEG2RAD(final_target.record->angles.x));
 
-	const auto health = player->get_predicted_health();
-	bool stab;
+	auto sin_yaw = 0.0f;
+	auto cos_yaw = 0.0f;
 
-	// IF health lower than swing_dmg, do a swing
-	if ( health <= swing_dmg ) stab = false;
-	// IF health lower than stab_dmg, do a stab
-	else if ( health <= stab_dmg ) stab = true;
-	// IF health more than swing+swing+stab, do a stab
-	else if ( health > ( swing_dmg + slash_dmg + stab_dmg ) ) stab = true;
-	// ELSE swing (initiate swing+swing+stab)
-	else stab = false;
+	DirectX::XMScalarSinCos(&sin_yaw, &cos_yaw, DEG2RAD(final_target.record->angles.y));
 
-	//------------------------------------------------
-	// Range and attack mode
-
-	return stab;
-}
-
-bool knifebot::is_behind( const lag_record_t* record )
-{
-	auto vec_los = record->m_origin - local_player->get_origin();
-	vec_los.z = 0.0f;
-	vec_los.NormalizeInPlace();
-
-	Vector forward{};
-	math::angle_vectors( record->m_abs_ang, &forward );
-	forward.z = 0.0f;
-
-	return vec_los.Dot( forward ) > 0.475;
-}
-
-float knifebot::get_damage( const lag_record_t* record, const bool stab )
-{
-	const auto player = globals::get_player( record->m_index );
-	C_BaseCombatWeapon* weapon = local_weapon;
-
-	//------------------------------------------------
-	// Swing and stab damage
-
-	struct table_t
-	{
-		// [first][armor][back]
-		unsigned char swing[ 2 ][ 2 ][ 2 ];
-		// [armor][back]
-		unsigned char stab[ 2 ][ 2 ];
-	};
-	static constexpr table_t table = { { { { 25, 90 }, { 21, 76 } }, { { 40, 90 }, { 34, 76 } } }, { { 65, 180 }, { 55, 153 } } };
-
-	const auto armor = ( player->get_armor() > 0 );
-	const auto first = weapon->get_next_primary_attack() + 0.4f < interfaces::globals()->curtime;
-	const auto back = is_behind( record );
-
-	const auto stab_dmg = table.stab[ armor ][ back ];
-	const auto swing_dmg = table.swing[ first ][ armor ][ back ];
-
-	return stab ? stab_dmg : swing_dmg;
+	auto final_delta = final_target.record->origin - g_ctx.globals.eye_pos;
+	return (int)(cos_yaw * cos_pitch * final_delta.x + sin_yaw * cos_pitch * final_delta.y >= 0.475f) + 1;
 }
