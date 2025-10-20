@@ -88,7 +88,7 @@ namespace menu::group
 	{
 		//VIRTUALIZER_TIGER_WHITE_START;
 		const auto tabs = MAKE("rage>tabs", tabs_layout, vec2{ 0.f, 0.f }, vec2{ 800.f, 22.f }, td_horizontal);
-		tabs->add(MAKE("rage>tabs>aimbot", child_tab, XOR("Aimbot"), GUI_HASH("rage>tab>aimbot"))->make_selected());
+		tabs->add(MAKE("rage>tabs>aimbot", child_tab, XOR("Aimwhere"), GUI_HASH("rage>tab>aimbot"))->make_selected());
 		tabs->add(MAKE("rage>tabs>anti-aim", child_tab, XOR("Anti-aim"), GUI_HASH("rage>tab>anti-aim")));
 
 		e->add(tabs);
@@ -358,11 +358,11 @@ namespace menu::group
 		}*/
 
 		{
-			const auto c = MAKE_RUNTIME(id + XOR("safepoint mode"), combo_box, cfg.weapon_config.fallback_mode[(int)grp], vec2{}, vec2{ 80.f, 20.f });
+			const auto c = MAKE_RUNTIME(id + XOR("safepoint"), combo_box, cfg.weapon_config.fallback_mode[(int)grp], vec2{}, vec2{ 80.f, 20.f });
 			c->add(
-			{MAKE_RUNTIME(id + XOR("safepoint mode>none"), selectable, XOR("None"), cfg_t::fallback_off), MAKE_RUNTIME(
-				 id + XOR("safepoint mode>adaptive"), selectable, XOR("Adaptive"), cfg_t::fallback_adaptive), MAKE_RUNTIME(
-				 id + XOR("safepoint mode>prefer safepoint"), selectable, XOR("Prefer safepoint"), cfg_t::fallback_prefer_safepoint),});
+			{MAKE_RUNTIME(id + XOR("safepoint>none"), selectable, XOR("None"), cfg_t::fallback_off), MAKE_RUNTIME(
+				 id + XOR("safepoint>adaptive"), selectable, XOR("Adaptive"), cfg_t::fallback_adaptive), MAKE_RUNTIME(
+				 id + XOR("safepoint>prefer safepoint"), selectable, XOR("Prefer safepoint"), cfg_t::fallback_prefer_safepoint),});
 
 			ADD_INLINE("Safepoint mode", c);
 		}
@@ -385,7 +385,7 @@ namespace menu::group
 			const auto c = MAKE_RUNTIME(id + XOR("extra safety"), combo_box, cfg.weapon_config.extra_safety[(int)grp], vec2{}, vec2{ 80.f, 20.f });
 			c->allow_multiple = true;
 			c->add(
-			{MAKE_RUNTIME(id + XOR("extra safety>lethal"), selectable, XOR("Lethal"), cfg_t::safety_lethal), MAKE_RUNTIME(
+			{MAKE_RUNTIME(id + XOR("extra safety>lethal"), selectable, XOR("Baim"), cfg_t::safety_lethal), MAKE_RUNTIME(
 				 id + XOR("extra safety>in air target"), selectable, XOR("In air target"), cfg_t::safety_air),
 			 MAKE_RUNTIME(id + XOR("extra safety>moving target"), selectable, XOR("Moving target"), cfg_t::safety_moving),
 			 MAKE_RUNTIME(id + XOR("extra safety>standing target"), selectable, XOR("Standing target"), cfg_t::safety_standing),
